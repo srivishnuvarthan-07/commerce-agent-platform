@@ -1,0 +1,127 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8087}
+
+spring:
+  application:
+    name: mall-order-agent
+
+  config:
+    import: classpath:rag.yml
+
+  datasource:
+    url: ${AGENT_MEMORY_DATASOURCE_URL:jdbc:mysql://127.0.0.1:13306/agent_memory?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USER:portfolio}
+    password: ${MYSQL_PASSWORD:portfolio}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  flyway:
+    enabled: ${AGENT_FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:16379}
+
+  session:
+    store-type: redis
+    timeout: ${AGENT_SESSION_IDLE_TIMEOUT:30m}
+    redis:
+      namespace: mall-order-agent:session
+      repository-type: indexed
+
+  ai:
+    openai:
+      api-key: ${MISTRAL_API_KEY:missing}
+      base-url: ${MISTRAL_BASE_URL:https://api.mistral.ai/v1}
+      embedding:
+        options:
+          model: mistral-embed
+      chat:
+        options:
+          model: mistral-small-latest
+          temperature: 0.3
+    mcp:
+      client:
+        enabled: true
+        name: mall-order-agent-mcp
+        version: 1.0.0
+        request-timeout: 30s
+        type: ASYNC
+        toolcallback:
+          enabled: true
+        sse:
+          connections:
+            order-server:
+              url: ${MCP_SERVER_URL:http://127.0.0.1:8082}
+
+observability:
+  enabled: true
+  service-name: mall-order-agent
+  producer:
+    enabled: true
+  consumer:
+    enabled: false
+  trace:
+    topic: rag-trace-events
+    tag: trace
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAMESRV_ADDR:127.0.0.1:19876}
+  producer:
+    group: rag-trace-producer-agent
+    send-message-timeout: 3000
+
+agent:
+  auth:
+    enabled: ${AGENT_AUTH_ENABLED:true}
+    demo-initial-password: ${DEMO_INITIAL_PASSWORD:DemoLogin@2026!}
+    admin-initial-password: ${ADMIN_INITIAL_PASSWORD:}
+    evaluation-token: ${AGENT_EVALUATION_TOKEN:local-evaluation-token-change-me}
+    absolute-session-seconds: ${AGENT_SESSION_ABSOLUTE_SECONDS:28800}
+    login-max-failures: ${AGENT_LOGIN_MAX_FAILURES:5}
+    login-lock-seconds: ${AGENT_LOGIN_LOCK_SECONDS:900}
+    trusted-proxies: ${AGENT_TRUSTED_PROXIES:127.0.0.1,::1}
+    secure-cookie: ${AGENT_SECURE_COOKIE:false}
+    service-token: ${MALL_ORDER_SERVICE_TOKEN:local-order-service-token-change-me}
+    mcp-service-token: ${MCP_SERVICE_TOKEN:local-mcp-service-token-change-me}
+  conversation:
+    max-turns: 10
+  graph:
+    human-review-enabled: true # 敏感操作人工审核（退货/付款/删除/确认类回复）
+  order:
+    base-url: ${MALL_ORDER_BASE_URL:http://127.0.0.1:8081}
+    mcp:
+      enabled: true
+
+memory:
+  enabled: true
+  user-id: default_user
+  conversation-id: default
+  short-term:
+    max-size: 20
+    key-prefix: memory:short
+    cursor-key-prefix: memory:consolidate:cursor
+    ttl-seconds: 604800
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:16379}
+      connection-timeout-ms: 5000
+  long-term:
+    dimension: 1024
+    milvus:
+      host: ${MILVUS_HOST:127.0.0.1}
+      port: ${MILVUS_PORT:29530}
+  extractor:
+    enabled: true
+  consolidation:
+    enabled: true
+    interval-ms: 300000
+    min-messages: 4
+    message-threshold: 10
+    token-threshold: 800
+  user-profile:
+    enabled: true

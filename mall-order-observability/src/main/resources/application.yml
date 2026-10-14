@@ -1,0 +1,26 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8089}
+
+spring:
+  application:
+    name: mall-order-observability
+
+observability:
+  api-token: ${OBSERVABILITY_SERVICE_TOKEN:local-observability-token-change-me}
+  enabled: true
+  service-name: mall-order-observability
+  producer:
+    enabled: false
+  consumer:
+    enabled: true
+    group: rag-trace-consumer
+  trace:
+    topic: rag-trace-events
+    tag: trace
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://127.0.0.1:19200}
+    index: rag-traces
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAMESRV_ADDR:127.0.0.1:19876}

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Management · Mall Order Agent</title>
+  <link rel="stylesheet" href="/auth.css">
+</head>
+<body class="admin-body">
+<header class="admin-header">
+  <div class="brand"><span class="brand-mark">OA</span><div><strong>Security Management</strong><span id="adminName">Administrator</span></div></div>
+  <button class="secondary compact" id="logoutButton" type="button">Logout</button>
+</header>
+<main class="admin-shell">
+  <nav class="admin-tabs" aria-label="Management View">
+    <button class="tab active" data-tab="users" type="button">Accounts</button>
+    <button class="tab" data-tab="tokens" type="button">Evaluation Tokens</button>
+    <button class="tab" data-tab="audit" type="button">Security Audit</button>
+  </nav>
+
+  <section class="admin-section" id="usersPanel">
+    <div class="section-heading"><div><h1>Accounts</h1><p>A business identity can only be linked to one login account</p></div><button class="primary compact" id="openCreateUser" type="button">Add Account</button></div>
+    <form class="inline-form hidden" id="createUserForm">
+      <label>Username<input id="newUsername" autocomplete="off" placeholder="e.g. sales.newuser" required></label>
+      <label>Business Identity<select id="newIdentity" required></select></label>
+      <label>Temporary Password<input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="72" required></label>
+      <button class="primary compact" type="submit">Create</button>
+      <button class="secondary compact" id="cancelCreateUser" type="button">Cancel</button>
+    </form>
+    <p class="notice" id="userNotice" role="status"></p>
+    <div class="table-wrap"><table><thead><tr><th>Account</th><th>Identity</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead><tbody id="userRows"></tbody></table></div>
+  </section>
+
+  <section class="admin-section hidden" id="tokensPanel">
+    <div class="section-heading"><div><h1>Evaluation Tokens</h1><p>Plaintext is only shown once at creation time</p></div><button class="primary compact" id="openCreateToken" type="button">Create Token</button></div>
+    <form class="inline-form hidden" id="createTokenForm">
+      <label>Name<input id="tokenName" placeholder="AgentInsight" required></label>
+      <label>Valid Days<input id="tokenDays" type="number" value="90" min="1" max="365" required></label>
+      <button class="primary compact" type="submit">Create</button>
+      <button class="secondary compact" id="cancelCreateToken" type="button">Cancel</button>
+    </form>
+    <div class="one-time-token hidden" id="oneTimeToken"><strong>New Token</strong><code id="rawToken"></code><button class="secondary compact" id="copyToken" type="button">Copy</button></div>
+    <p class="notice" id="tokenNotice" role="status"></p>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Prefix</th><th>Scope</th><th>Expiry</th><th>Last Used</th><th>Actions</th></tr></thead><tbody id="tokenRows"></tbody></table></div>
+  </section>
+
+  <section class="admin-section hidden" id="auditPanel">
+    <div class="section-heading"><div><h1>Security Audit</h1><p>Retained for 180 days; users and resources shown as anonymized fingerprints</p></div><button class="secondary compact" id="refreshAudit" type="button">Refresh</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Time</th><th>Event</th><th>Subject</th><th>Resource</th><th>Outcome</th><th>Source</th></tr></thead><tbody id="auditRows"></tbody></table></div>
+  </section>
+</main>
+<dialog id="passwordDialog">
+  <form method="dialog" id="resetPasswordForm">
+    <h2>Set Temporary Password</h2><p id="resetTarget"></p>
+    <label>Temporary Password<input id="resetPassword" type="password" minlength="12" maxlength="72" required></label>
+    <p class="notice" id="resetNotice"></p>
+    <div class="dialog-actions"><button class="secondary compact" value="cancel" type="button" id="cancelReset">Cancel</button><button class="primary compact" type="submit">Confirm Reset</button></div>
+  </form>
+</dialog>
+<dialog id="impersonationDialog">
+  <form method="dialog" id="impersonationForm">
+    <h2>Enter Demo Identity</h2><p id="impersonationTarget"></p>
+    <label>Admin Password<input id="impersonationPassword" type="password" autocomplete="current-password" required></label>
+    <label>Demo Reason<input id="impersonationReason" minlength="5" maxlength="200" required></label>
+    <p class="notice" id="impersonationNotice"></p>
+    <div class="dialog-actions"><button class="secondary compact" type="button" id="cancelImpersonation">Cancel</button><button class="primary compact" type="submit">Enter</button></div>
+  </form>
+</dialog>
+<script src="/admin.js" defer></script>
+</body>
+</html>

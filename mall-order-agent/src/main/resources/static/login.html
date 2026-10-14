@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login · Mall Order Agent</title>
+  <link rel="stylesheet" href="/auth.css">
+</head>
+<body>
+<main class="auth-shell">
+  <section class="auth-panel">
+    <div class="brand"><span class="brand-mark">OA</span><div><strong>Mall Order Agent</strong><span>Identity &amp; Permissions Workbench</span></div></div>
+    <h1>Account Login</h1>
+    <p class="subtitle">Use your assigned business account to enter the workspace</p>
+    <form id="loginForm">
+      <div class="field"><label for="username">Username</label><input id="username" name="username" autocomplete="username" required></div>
+      <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+      <p class="error" id="loginError" role="alert"></p>
+      <button class="primary" id="loginButton" type="submit">Login</button>
+    </form>
+  </section>
+  <section class="demo-panel">
+    <h2>Demo Accounts</h2>
+    <p>Select an identity to fill in the username; permissions are determined by the login session</p>
+    <div class="accounts" id="demoAccounts"></div>
+  </section>
+</main>
+<script src="/login.js" defer></script>
+</body>
+</html>

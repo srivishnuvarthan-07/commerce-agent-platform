@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mall Order Agent</title>
+  <link rel="stylesheet" href="/style.css?v=20260819a"/>
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">OA</span>
+    <div>
+      <h1>Mall Order Agent</h1>
+      <p>Identity &amp; Permissions Workbench</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <div class="status" id="statusBadge" title="Agent Service Status">
+      <span class="status-dot"></span>
+      <span id="statusText">Connecting</span>
+    </div>
+    <div class="persona-trigger account-chip">
+      <span class="avatar" id="currentAvatar">Z</span>
+      <span class="persona-trigger-copy">
+        <strong id="currentPersonaName">Zhang Wei</strong>
+        <small id="currentPersonaMeta">Customer · USER1001</small>
+      </span>
+    </div>
+    <button type="button" class="button button-quiet" id="logoutBtn">Logout</button>
+  </div>
+</header>
+
+<main class="app-layout">
+  <section class="chat-surface" aria-labelledby="chatTitle">
+    <div class="surface-header chat-header">
+      <div>
+        <span class="eyebrow">Current Session</span>
+        <h2 id="chatTitle">AI Assistant</h2>
+      </div>
+      <div class="suggestions" id="suggestions"></div>
+    </div>
+    <div class="messages" id="messages" aria-live="polite"></div>
+    <form class="composer" id="chatForm">
+      <label class="sr-only" for="queryInput">Enter a question</label>
+      <input type="text" id="queryInput" placeholder="Enter a question" autocomplete="off"/>
+      <button type="submit" class="button button-primary" id="sendBtn">Send</button>
+    </form>
+  </section>
+
+  <aside class="workspace" aria-labelledby="workspaceTitle">
+    <div class="surface-header workspace-header">
+      <div>
+        <span class="eyebrow" id="workspaceEyebrow">Customer Workspace</span>
+        <h2 id="workspaceTitle">My Orders</h2>
+      </div>
+      <button type="button" class="icon-button" id="refreshWorkspace" title="Refresh Workspace" aria-label="Refresh Workspace">↻</button>
+    </div>
+    <div class="persona-summary" id="personaSummary"></div>
+    <div class="workspace-content" id="workspaceContent">
+      <p class="empty-state">Loading...</p>
+    </div>
+  </aside>
+</main>
+
+<script src="/app.js?v=20260819a"></script>
+</body>
+</html>

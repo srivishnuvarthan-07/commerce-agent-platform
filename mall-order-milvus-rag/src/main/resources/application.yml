@@ -1,0 +1,49 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8086}
+
+spring:
+  application:
+    name: mall-order-milvus-rag
+
+  config:
+    import: classpath:rag.yml
+
+  ai:
+    openai:
+      api-key: ${MISTRAL_API_KEY:missing}
+      base-url: ${MISTRAL_BASE_URL:https://api.mistral.ai/v1}
+      embedding:
+        options:
+          model: mistral-embed
+      chat:
+        options:
+          model: mistral-small-latest
+          temperature: 0.3
+
+# 若想使用 DeepSeek Embedding，确保 DEEPSEEK_API_KEY 有效且可访问 /v1/embeddings 端点
+#spring:
+#  ai:
+#    openai:
+#      api-key: ${DEEPSEEK_API_KEY}
+#      base-url: https://api.deepseek.com
+#      embedding:
+#        options:
+#          model: deepseek-embedding
+
+observability:
+  enabled: true
+  service-name: mall-order-milvus-rag
+  producer:
+    enabled: true
+  consumer:
+    enabled: false
+  trace:
+    topic: rag-trace-events
+    tag: trace
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAMESRV_ADDR:127.0.0.1:19876}
+  producer:
+    group: rag-trace-producer
+    send-message-timeout: 3000
