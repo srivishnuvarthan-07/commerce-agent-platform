@@ -37,14 +37,14 @@ public class LoginThrottleFilter extends OncePerRequestFilter {
                 response.setStatus(429);
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                 objectMapper.writeValue(response.getWriter(),
-                        Map.of("code", 429, "message", "登录尝试过于频繁，请稍后重试"));
+                        Map.of("code", 429, "message", "Too many login attempts, please try again later"));
                 return;
             }
         } catch (RuntimeException e) {
             response.setStatus(503);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             objectMapper.writeValue(response.getWriter(),
-                    Map.of("code", 503, "message", "认证会话服务暂不可用"));
+                    Map.of("code", 503, "message", "Authentication service temporarily unavailable"));
             return;
         }
         filterChain.doFilter(request, response);

@@ -1,68 +1,51 @@
 package com.example.mallordercmpserver.data;
 
 /**
- * 订单状态枚举
+ * Order status enum
  */
 public enum OrderStatus {
-    /**
-     * 待付款 (0)
-     */
-    PENDING(0, "待付款"),
+    /** Pending payment (0) */
+    PENDING(0, "Pending Payment"),
 
-    /**
-     * 已付款 (1)
-     */
-    PAID(1, "已付款"),
+    /** Paid (1) */
+    PAID(1, "Paid"),
 
-    /**
-     * 已发货 (2)
-     */
-    SHIPPED(2, "已发货"),
+    /** Shipped (2) */
+    SHIPPED(2, "Shipped"),
 
-    /**
-     * 已完成 (3)
-     */
-    COMPLETED(3, "已完成"),
+    /** Completed (3) */
+    COMPLETED(3, "Completed"),
 
-    /**
-     * 已取消 (4)
-     */
-    CANCELLED(4, "已取消");
+    /** Cancelled (4) */
+    CANCELLED(4, "Cancelled");
 
     private final int code;
     private final String description;
 
     /**
-     * 构造函数
-     * @param code 状态码
-     * @param description 状态描述
+     * @param code        status code
+     * @param description status label
      */
     OrderStatus(int code, String description) {
         this.code = code;
         this.description = description;
     }
 
-    /**
-     * 获取状态码
-     * @return 状态码
-     */
+    /** @return status code */
     public int getCode() {
         return code;
     }
 
-    /**
-     * 获取状态描述
-     * @return 状态描述
-     */
+    /** @return status label */
     public String getDescription() {
         return description;
     }
 
     /**
-     * 根据状态码获取枚举实例
-     * @param code 状态码
-     * @return 对应的枚举实例
-     * @throws IllegalArgumentException 如果找不到对应的枚举值
+     * Look up an enum value by its status code.
+     * @param code status code
+     * @return matching enum value
+     * @throws IllegalArgumentException if no value matches
      */
     public static OrderStatus fromCode(int code) {
         for (OrderStatus status : values()) {
@@ -70,21 +53,15 @@ public enum OrderStatus {
                 return status;
             }
         }
-        throw new IllegalArgumentException("无效的订单状态码: " + code);
+        throw new IllegalArgumentException("Invalid order status code: " + code);
     }
 
-    /**
-     * 检查当前状态是否允许取消订单
-     * @return 是否允许取消
-     */
+    /** @return true if the order can still be cancelled */
     public boolean canBeCancelled() {
         return this == PENDING || this == PAID;
     }
 
-    /**
-     * 检查当前状态是否已完成（包括已完成和已取消）
-     * @return 是否已完成
-     */
+    /** @return true if the order has reached a terminal state */
     public boolean isFinalStatus() {
         return this == COMPLETED || this == CANCELLED;
     }

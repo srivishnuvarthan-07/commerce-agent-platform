@@ -126,7 +126,7 @@ public class SecurityConfig {
                                 response.setStatus(503);
                                 response.setContentType("application/json");
                                 objectMapper.writeValue(response.getWriter(),
-                                        Map.of("code", 503, "message", "认证会话服务暂不可用"));
+                                        Map.of("code", 503, "message", "Authentication service temporarily unavailable"));
                                 return;
                             }
                             auditService.record("LOGIN_FAILURE", username, null,
@@ -134,7 +134,7 @@ public class SecurityConfig {
                             response.setStatus(401);
                             response.setContentType("application/json");
                             objectMapper.writeValue(response.getWriter(),
-                                    Map.of("code", 401, "message", "用户名或密码错误，或账户暂时不可用"));
+                                    Map.of("code", 401, "message", "Invalid username or password, or account temporarily unavailable"));
                         }).permitAll())
                 .logout(logout -> logout
                         .logoutRequestMatcher(new AntPathRequestMatcher("/auth/logout", "POST"))
@@ -157,7 +157,7 @@ public class SecurityConfig {
                                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                                 response.setContentType("application/json");
                                 objectMapper.writeValue(response.getWriter(),
-                                        Map.of("code", 401, "message", "请先登录"));
+                                        Map.of("code", 401, "message", "Please log in first"));
                             }
                         })
                         .accessDeniedHandler((request, response, exception) -> {
@@ -167,7 +167,7 @@ public class SecurityConfig {
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType("application/json");
                             objectMapper.writeValue(response.getWriter(),
-                                    Map.of("code", 403, "message", "没有执行该操作的权限"));
+                                    Map.of("code", 403, "message", "You do not have permission to perform this action"));
                         }))
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp.policyDirectives(

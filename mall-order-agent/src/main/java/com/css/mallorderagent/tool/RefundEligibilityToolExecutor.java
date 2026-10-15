@@ -42,7 +42,7 @@ public class RefundEligibilityToolExecutor implements ActionExecutor {
         String query = AgentGraphSupport.resolveQuery(state);
         Optional<String> orderId = OrderQueryParser.parseOrderId(query);
         if (orderId.isEmpty()) {
-            return failure("判断退款资格需要提供订单号。");
+            return failure("An order number is required to check refund eligibility.");
         }
 
         boolean demoScoped = AgentGraphSupport.hasCapabilityContext(state);
@@ -50,7 +50,7 @@ public class RefundEligibilityToolExecutor implements ActionExecutor {
                 state, DemoCapability.ASSIGNED_ORDER_READ.name());
         if (demoScoped && !AgentGraphSupport.hasCapability(state, DemoCapability.OWN_ORDER_READ.name())
                 && !assignedAccess) {
-            return failure("当前演示身份没有订单查询能力。");
+            return failure("The current demo identity does not have order query capability.");
         }
 
         String stateUserId = state.value(AgentGraphKeys.USER_ID, "");
@@ -58,7 +58,7 @@ public class RefundEligibilityToolExecutor implements ActionExecutor {
                 ? AgentGraphSupport.readStringList(state, AgentGraphKeys.AUTHORIZED_CUSTOMER_IDS)
                 : Optional.ofNullable(stateUserId).filter(id -> !id.isBlank()).map(List::of).orElse(List.of());
         if (authorizedCustomerIds.isEmpty()) {
-            return failure("判断退款资格需要提供用户 ID。");
+            return failure("A user ID is required to check refund eligibility.");
         }
 
         RefundEligibilityQueryParser.RefundQueryContext context = RefundEligibilityQueryParser.parse(query);
@@ -85,7 +85,7 @@ public class RefundEligibilityToolExecutor implements ActionExecutor {
             log.warn("Refund eligibility MCP call failed, orderFingerprint={}: {}",
                     TracePrivacy.fingerprint(orderId.get()), lastFailure.getMessage());
         }
-        return failure("未找到该订单，或当前演示身份无权判断该订单的退款资格。");
+        return failure("The order was not found, or the current demo identity does not have permission to check refund eligibility for this order.");
     }
 
     private static Map<String, Object> failure(String message) {

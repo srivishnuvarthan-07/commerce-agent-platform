@@ -13,7 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 人工审核通过后执行敏感订单操作（退货/退款/换货/取消等），经 MCP 调用 mall-order-cmp-server。
+ * Executes sensitive order operations (return / refund / exchange / cancel etc.)
+ * after human approval, via MCP calls to mall-order-cmp-server.
  */
 @Component
 public class SensitiveOrderOperationExecutor {
@@ -35,49 +36,56 @@ public class SensitiveOrderOperationExecutor {
                 .orElseGet(() -> OrderQueryParser.parseOrderId(query).orElse(null));
 
         if (AgentGraphSupport.hasCapabilityContext(state)) {
-            boolean cancel = operation.contains("取消");
+            boolean cancel = operation.contains("cancel");
             String required = (cancel ? DemoCapability.ORDER_CANCEL : DemoCapability.AFTER_SALES_CREATE).name();
             if (!AgentGraphSupport.hasCapability(state, required)) {
                 return SensitiveOperationResult.failure(operation, orderId, userId,
-                        "当前演示身份无权执行该敏感订单操作。");
+                        "The current demo identity does not have permission to perform this sensitive order operation.");
             }
         }
 
         if (orderId == null || orderId.isBlank()) {
             return SensitiveOperationResult.failure(operation, null, userId,
-                    "未能识别订单号，无法执行" + operation + "。请提供订单号后重试。");
+                    "Could not identify an order number — unable to execute " + operation
+                            + ". Please provide the order number and try again.");
         }
         if (userId.isBlank()) {
             return SensitiveOperationResult.failure(operation, orderId, userId,
-                    "未能识别当前用户，无法执行敏感订单操作。");
+                    "Could not identify the current user — unable to execute the sensitive order operation.");
         }
 
         log.info("Executing sensitive operation via MCP, operation={}, orderFingerprint={}",
                 operation, TracePrivacy.fingerprint(orderId));
         try {
             String message = switch (operation) {
-                case "取消订单", "取消" -> executeCancel(orderId, userId);
-                case "退货" -> executeAfterSales(orderId, userId, "退货");
-                case "退款" -> executeAfterSales(orderId, userId, "退款");
-                case "换货" -> executeAfterSales(orderId, userId, "换货");
-                case "修改收货地址" -> executeAddressChange(orderId, userId);
-                default -> executeAfterSales(orderId, userId, operation);
+                case "cancel order", "cancel" -> executeCancel(orderId, userId);
+                case "return"                 -> executeAfterSales(orderId, userId, "return");
+                case "refund"                 -> executeAfterSales(orderId, userId, "refund");
+                case "exchange"               -> executeAfterSales(orderId, userId, "exchange");
+                case "address change"         -> executeAddressChange(orderId, userId);
+                // Legacy Chinese labels (kept for backward compatibility)
+                case "取消订单", "取消"         -> executeCancel(orderId, userId);
+                case "退货"                   -> executeAfterSales(orderId, userId, "return");
+                case "退款"                   -> executeAfterSales(orderId, userId, "refund");
+                case "换货"                   -> executeAfterSales(orderId, userId, "exchange");
+                case "修改收货地址"             -> executeAddressChange(orderId, userId);
+                default                       -> executeAfterSales(orderId, userId, operation);
             };
             return SensitiveOperationResult.success(operation, orderId, userId, message);
         } catch (OrderMcpToolException e) {
             log.error("Sensitive operation failed via MCP, op={}, orderFingerprint={}",
                     operation, TracePrivacy.fingerprint(orderId), e);
             return SensitiveOperationResult.failure(operation, orderId, userId,
-                    operation + "执行失败：订单 MCP 服务不可用（" + e.getMessage() + "）");
+                    operation + " failed: the Order MCP service is unavailable (" + e.getMessage() + ")");
         }
     }
 
     private String executeCancel(String orderId, String userId) {
         boolean ok = orderMcpToolClient.cancelOrder(orderId, userId);
         if (ok) {
-            return "已成功取消订单 " + orderId + "。";
+            return "Order " + orderId + " has been successfully cancelled.";
         }
-        return "取消订单 " + orderId + " 失败，请确认订单状态是否允许取消。";
+        return "Failed to cancel order " + orderId + ". Please check whether the order status allows cancellation.";
     }
 
     private String executeAfterSales(String orderId, String userId, String operation) {
