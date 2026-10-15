@@ -1,33 +1,85 @@
 # E-commerce Order Agent Platform
 
-An observable AI agent for e-commerce order scenarios. It uses Spring AI Alibaba StateGraph to orchestrate planning, memory, RAG, order tools, and human-in-the-loop confirmation. Every execution trace is written asynchronously to Elasticsearch for quality evaluation via AgentInsight.
+An observable AI Agent for e-commerce order scenarios: uses Spring AI Alibaba StateGraph to orchestrate planning, memory, RAG, order tools, and human confirmation, and asynchronously writes a complete execution trace to Elasticsearch for quality evaluation via AgentInsight.
 
-> This is not a general-purpose chatbot. It is an explainable, auditable, human-interruptible order agent execution pipeline.
+> Project intent: not a general-purpose chatbot, but an explainable, regression-testable, human-interruptible order agent execution pipeline.
 
----
+## Project Evolution
 
-## Table of Contents
+This project is a continuous refactor of `EcommSpringBot`, not a new repository created from scratch. The 18 prototype commits are preserved in full in the current Git history; the pre-refactor baseline is tagged `ecommspringbot-v1`. Subsequent commits trace the journey from an experimental mall assistant to a verifiable order agent platform.
 
-1. [Quick Start](#quick-start)
-2. [Demo Accounts & What to Ask](#demo-accounts--what-to-ask)
-3. [Demo Orders](#demo-orders)
-4. [Architecture](#architecture)
-5. [Core Modules](#core-modules)
-6. [Refund Eligibility Model](#refund-eligibility-model)
-7. [Build & Test](#build--test)
-8. [Security Scope](#security-scope)
-9. [Trace Contract](#trace-contract)
-10. [Known Limitations](#known-limitations)
+| Dimension | EcommSpringBot Prototype | Current Platform |
+| --- | --- | --- |
+| Module boundaries | Multiple independent experimental modules with duplicate wrappers | Six core modules: Order, MCP, Observability, RAG, Memory, Agent |
+| Agent orchestration | Function Calling and early StateGraph experiments | Deterministic Planner, action chain, Graph checkpoint, human interrupt and resume |
+| Business security | Mainly validated natural-language order operations | Server-side identity, capability boundaries, order ownership, sensitive-op confirmation, security audit |
+| RAG & memory | Independent service prototypes | Combined as Agent dependencies with unified permission scope and Trace contract |
+| Quality loop | Primarily interface and log validation | Unit/integration tests, end-to-end smoke, RocketMQ + Elasticsearch Trace, AgentInsight evaluation |
+| Delivery | Sub-modules started individually | Root reactor, Docker Compose, unified scripts, and CI |
 
----
+You can review the evolution rather than just the final code:
+
+```bash
+git log --oneline --decorate --graph --all
+git diff ecommspringbot-v1..HEAD --stat
+```
+
+## Core Capabilities
+
+- **Deterministic planning**: routes questions to order query, RAG Q&A, memory, or sensitive order operations.
+- **Human-in-the-Loop**: refund, return, exchange, cancel order, and address change must pause the Graph; execution resumes only after the user confirms.
+- **Real business closure**: after-sales operations call the order service via MCP and write to `after_sales_request` — no simulated success text.
+- **Deterministic refund eligibility**: the order service produces a four-state verdict based on real-time order, logistics, fulfilment, and product type data; RAG and the LLM can only explain the verdict, never override it.
+- **Login and permission workspace**: 8 demo accounts across HR, Engineering, Sales, and Customer roles; identity, knowledge scope, order scope, and tool capabilities are all determined by the login session.
+- **Order ownership boundary**: clients cannot supply `actorUserId`; customers can only see their own orders; sales staff can only see assigned customers, with phone and address masked.
+- **Hybrid memory**: Redis for short-term session memory, Milvus for long-term semantic memory, MySQL for structured user profile.
+- **RAG evidence chain**: 8 built-in demo PDFs with server-side metadata scope filtering, vector retrieval, rerank, and cited-evidence Trace.
+- **Async observability**: Traces written via RocketMQ to Elasticsearch; root event, retrieval, LLM, Tool, and human confirmation spans are all trackable.
+- **Repeatable verification**: the default `verify` run requires no local ports or external infrastructure; 3 end-to-end smoke scenarios are also available.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    UI["Authenticated Web UI"] --> Agent["mall-order-agent :8087"]
+    Insight["AgentInsight"] -->|"scoped evaluation token"| Agent
+    Agent --> Graph["StateGraph: Planner -> Actions -> LLM -> Human"]
+    Graph --> RAG["mall-order-milvus-rag"]
+    Graph --> Memory["mall-order-memory"]
+    Graph --> ReadAPI["mall-order :8081"]
+    Graph --> MCP["mall-order-cmp-server :8082"]
+    MCP --> WriteAPI["mall-order :8081"]
+    RAG --> Milvus[(Milvus)]
+    Memory --> Redis[(Redis)]
+    Memory --> MySQL[(MySQL)]
+    ReadAPI --> MySQL
+    WriteAPI --> MySQL
+    Agent --> MQ[(RocketMQ)]
+    MQ --> Obs["mall-order-observability :8089"]
+    Obs --> ES[(Elasticsearch)]
+    ES --> Insight
+```
+
+## Six Core Modules
+
+| Module | Responsibility | How it runs |
+| --- | --- | --- |
+| `mall-order` | Order query, ownership check, refund eligibility, cancel order, after-sales ticket persistence | Standalone service, `8081` |
+| `mall-order-cmp-server` | Wraps sensitive order operations as MCP Tools | Standalone service, `8082` |
+| `mall-order-observability` | Trace publish, consume, ES indexing and query | Standalone service, `8089` |
+| `mall-order-milvus-rag` | PDF import, Milvus retrieval, rerank, RAG | Embedded in Agent |
+| `mall-order-memory` | Redis short-term memory, Milvus long-term memory, user profile | Embedded in Agent |
+| `mall-order-agent` | Planner, StateGraph, LLM, Tools, human confirmation, Web UI | Standalone service, `8087` |
+
+RAG, Memory, and Observability embed into the Agent as libraries; the actual processes you need to start are the Order service, MCP service, Trace consumer service, and Agent — four in total. After building, all four run as executable JARs; Observability also ships a plain JAR for reuse by RAG/Agent.
 
 ## Quick Start
 
 ### Prerequisites
 
 - JDK 17+
-- Docker Desktop with Docker Compose
-- Mistral API key (free tier works — set in `.env`)
+- Docker Desktop / Docker Compose
+- A Mistral API key (free tier works)
 
 ### 1. Configure environment variables
 
@@ -35,7 +87,7 @@ An observable AI agent for e-commerce order scenarios. It uses Spring AI Alibaba
 cp .env.example .env
 ```
 
-Open `.env` and set your `MISTRAL_API_KEY`. The default demo password is `DemoLogin@2026!`. For the admin dashboard, set `ADMIN_INITIAL_PASSWORD` (12+ characters). Service tokens already have loopback-only defaults; replace them for any non-local deployment. `.env` is git-ignored.
+Fill in `MISTRAL_API_KEY` in `.env`. The local demo default password is `DemoLogin@2026!`; for the admin dashboard, also set `ADMIN_INITIAL_PASSWORD` (at least 12 characters). Service tokens already have loopback-only demo defaults; replace them all for any non-local environment. `.env` is git-ignored.
 
 ### 2. Start infrastructure
 
@@ -43,307 +95,165 @@ Open `.env` and set your `MISTRAL_API_KEY`. The default demo password is `DemoLo
 docker compose up -d
 ```
 
-This starts MySQL, Redis, Milvus (with etcd/MinIO), RocketMQ, and Elasticsearch. MySQL auto-creates two schemas and seeds 3 demo orders on first run. Host ports use non-standard values (`13306`, `16379`, `29530`, `19876`, `19200`) to avoid collisions with common local dev services.
+This starts MySQL, Redis, Milvus (with etcd/MinIO), RocketMQ, and Elasticsearch. MySQL automatically creates two schemas and seeds 3 demo orders on first run. Host ports use isolated values (`13306`, `16379`, `29530`, `19876`, `19200`) to avoid conflicts with common local services; container ports remain standard.
 
-### 3. Start the four application services
+### 3. Start the four application processes
 
-Start them in this order, waiting for each to be ready before starting the next:
+| Start order | Application | Default port | Purpose |
+| --- | --- | --- | --- |
+| 1 | `mall-order` | `8081` | Order query, cancel, and after-sales ticket business API |
+| 2 | `mall-order-cmp-server` | `8082` | Exposes order operations as MCP Tools; calls `mall-order` |
+| 3 | `mall-order-observability` | `8089` | Consumes Trace events from RocketMQ and writes to Elasticsearch |
+| 4 | `mall-order-agent` | `8087` | Web UI and Agent API; orchestrates RAG, Memory, LLM, and order tools |
 
-```bash
-# 1 — Order service (business logic, refund eligibility, after-sales tickets)
-java -jar mall-order/target/mall-order-0.0.1-SNAPSHOT.jar
+`mall-order-milvus-rag` and `mall-order-memory` are embedded as dependencies in `mall-order-agent` and do not need to be started separately. In IntelliJ you can run the `All Applications` compound run configuration directly; if Observability is already running you can use `Core Applications` instead. All four sub-configurations activate the `demo` profile.
 
-# 2 — MCP server (exposes order operations as MCP Tools)
-java -jar mall-order-cmp-server/target/mall-order-cmp-server-0.0.1.jar
+After startup, open [http://127.0.0.1:8087](http://127.0.0.1:8087).
 
-# 3 — Observability service (consumes traces from RocketMQ → Elasticsearch)
-java -jar mall-order-observability/target/mall-order-observability-0.0.1-SNAPSHOT-exec.jar
+### 4. Initialise the demo knowledge base
 
-# 4 — Agent service (web UI, planner, LLM, RAG, memory)
-java -jar mall-order-agent/target/mall-order-agent-0.0.1-SNAPSHOT.jar
-```
-
-Required environment variables for each process are in `.env`. On Windows, pass them as `-D` JVM flags or set them as environment variables before launching. See the `.run/` folder for pre-configured IntelliJ run configurations.
-
-Once all four are running, open **http://127.0.0.1:8087**.
-
-### 4. Import the demo knowledge base (RAG)
-
-Log in as `admin`, navigate to the admin dashboard, and trigger the PDF import. This chunks the 8 demo PDFs in `mall-order-milvus-rag/src/main/resources/data`, vectorises them with Mistral embeddings, and writes them to Milvus. The import is idempotent — you can re-run it safely.
-
-Alternatively, call the API directly after logging in as admin:
+Log in as `admin` and use the admin dashboard to trigger the PDF import, or call the endpoint directly:
 
 ```
 POST http://127.0.0.1:8087/vector/milvus/documents/import-local
 ```
 
-### 5. Reset the demo (optional)
-
-The admin dashboard has a **Reset Demo** button. It restores the 3 seed orders to their original state, deletes after-sales tickets, and clears all agent memory (Redis short-term, Milvus long-term, user profiles, and pending confirmations) for all 8 demo identities. Personas, knowledge scopes, and the imported knowledge base are not affected.
-
----
-
-## Demo Accounts & What to Ask
-
-All demo users share the same password: **`DemoLogin@2026!`**
-
-The admin account uses the password you set in `ADMIN_INITIAL_PASSWORD` (e.g. `Jyy@12345678`).
-
-> **How identity works:** The username you log in with determines your role, knowledge scope, and which orders you can see. Users cannot change their own identity or expand their own permissions.
-
----
-
-### HR — Lin Yue (`hr.linyue`)
-**Actor ID:** HR001 | **Role:** HRBP, Human Resources  
-**Knowledge scope:** Public + HR documents  
-**Order access:** None
-
-Good questions to ask:
-- How is annual leave calculated?
-- What employee benefits does the company offer?
-- What are the cross-department collaboration guidelines?
-- What are the rules around sick leave?
-
----
-
-### HR — Chen Chen (`hr.chenchen`)
-**Actor ID:** HR002 | **Role:** Recruiter, Human Resources  
-**Knowledge scope:** Public + HR documents  
-**Order access:** None
-
-Good questions to ask:
-- What does a new employee need to prepare for onboarding?
-- What are the probation period management requirements?
-- What is the recruitment interview process?
-- How is headcount approval handled?
-
----
-
-### Engineering — Zhou Hang (`dev.zhouhang`)
-**Actor ID:** DEV001 | **Role:** Backend Engineer  
-**Knowledge scope:** Public + Developer documents  
-**Order access:** None
-
-Good questions to ask:
-- What standards apply to order API development?
-- What are the code review requirements?
-- How should API idempotency be handled?
-- What are the logging standards for services?
-
----
-
-### Engineering — Zhao Ning (`dev.zhaoning`)
-**Actor ID:** DEV002 | **Role:** Platform Engineer  
-**Knowledge scope:** Public + Developer + Admin documents  
-**Order access:** None
-
-This is the most technically privileged non-admin identity — it can see platform ops and Agent internals documentation.
-
-Good questions to ask:
-- How do I troubleshoot Agent service errors?
-- What should I do if knowledge base import fails?
-- What should be checked before a service goes live?
-- How does the RAG retrieval pipeline work?
-
----
-
-### Sales — Wang Lei (`sales.wanglei`)
-**Actor ID:** SALES001 | **Role:** East China Sales  
-**Knowledge scope:** Public + Sales documents  
-**Order access:** Can view orders for **Zhang Wei (USER1001)** only — phone and address are masked
-
-Good questions to ask:
-- View orders for my assigned customers
-- What should I watch for when following up on orders?
-- How do I coordinate a customer refund request?
-- What is the current status of ORD20260810001?
-
-> Note: Sales users can *view* orders but cannot cancel or create after-sales tickets.
-
----
-
-### Sales — Liu Ting (`sales.liuting`)
-**Actor ID:** SALES002 | **Role:** Key Account Sales  
-**Knowledge scope:** Public + Sales documents  
-**Order access:** Can view orders for **Li Na (USER1002)** only — phone and address are masked
-
-Good questions to ask:
-- View orders for my assigned customers
-- How do I follow up on key account orders?
-- What are the boundaries for sales pricing?
-- What is the current status of ORD20260810003?
-
----
-
-### Customer — Zhang Wei (`customer.zhangwei`)
-**Actor ID:** USER1001 | **Role:** Individual Customer  
-**Knowledge scope:** Public + Customer service documents  
-**Order access:** Both own orders (ORD20260810001, ORD20260810002) — full detail, can cancel or request after-sales
-
-This is the richest demo identity for showing the full agent loop.
-
-Good questions to ask:
-- Show me my orders
-- Can I get a refund for ORD20260810001? *(triggers Human-in-the-Loop confirmation)*
-- When will ORD20260810002 be shipped?
-- I want to cancel order ORD20260810001 *(triggers Human-in-the-Loop)*
-- What are the refund rules for electronics?
-
-**After the agent asks for confirmation:**
-- Type `confirm` to execute the operation (writes to DB via MCP)
-- Type `cancel` to abort
-
----
-
-### Customer — Li Na (`customer.lina`)
-**Actor ID:** USER1002 | **Role:** Individual Customer  
-**Knowledge scope:** Public + Customer service documents  
-**Order access:** One completed order (ORD20260810003) — can view and request after-sales
-
-Good questions to ask:
-- Show me my orders
-- Can I still request after-sales for a completed order?
-- Explain the after-sales processing rules
-- What is the return window for my order?
-
----
-
-## Demo Orders
-
-| Order ID | Customer | Product | Amount | Status |
-|---|---|---|---|---|
-| `ORD20260810001` | Zhang Wei (USER1001) | Demo Phone Pro — 16GB+512GB | ¥5,999 | **Paid** (not yet shipped) |
-| `ORD20260810002` | Zhang Wei (USER1001) | Demo Tablet — 256GB | ¥3,299 | **Shipped** (in transit) |
-| `ORD20260810003` | Li Na (USER1002) | Demo Laptop — 32GB+1TB | ¥8,999 | **Completed** (delivered) |
-
-**Order status codes:**
-- `0` — Pending Payment
-- `1` — Paid (not shipped)
-- `2` — Shipped (in transit)
-- `3` — Completed (delivered)
-- `4` — Cancelled
-
----
-
-## Architecture
-
-```
-Authenticated Web UI  →  mall-order-agent :8087
-                              │
-                         StateGraph
-                    ┌─────────┼──────────┐
-                   RAG      Memory     Planner
-                    │                    │
-                 Milvus            Order Tools
-                                   │        │
-                             mall-order   mall-order-cmp-server
-                               :8081           :8082
-                                 │
-                              MySQL
-                         (orders, after_sales)
-
-mall-order-agent → RocketMQ → mall-order-observability :8089 → Elasticsearch
-```
-
-The agent receives a user message, runs it through a deterministic Planner, then executes one of these strategies:
-
-| Strategy | What happens |
-|---|---|
-| `ORDER_QUERY` | Directly calls the order service — no LLM needed |
-| `RAG_QA` | Retrieves relevant PDF chunks from Milvus, passes to LLM |
-| `DANGEROUS_ORDER_OP` | **Pauses the graph**, asks user to confirm, then executes via MCP |
-| `MEMORY` | Reads/writes user profile and conversation memory |
-| `GENERAL` | LLM answers directly |
-
----
-
-## Core Modules
-
-| Module | Responsibility | Port |
-|---|---|---|
-| `mall-order` | Order query, ownership check, refund eligibility, cancel, after-sales tickets | 8081 |
-| `mall-order-cmp-server` | Wraps sensitive order operations as MCP Tools | 8082 |
-| `mall-order-observability` | Publishes, consumes, and indexes execution traces to Elasticsearch | 8089 |
-| `mall-order-milvus-rag` | PDF import, Milvus retrieval, rerank, RAG context | embedded in agent |
-| `mall-order-memory` | Redis short-term memory, Milvus long-term memory, user profile | embedded in agent |
-| `mall-order-agent` | Planner, StateGraph, LLM, Tools, Human-in-the-Loop, Web UI | 8087 |
-
----
+This chunks the 8 demo PDFs in `mall-order-milvus-rag/src/main/resources/data`, vectorises them with Mistral embeddings, and writes them to Milvus. Chunks use stable IDs so the import can be run repeatedly without duplication.
 
 ## Refund Eligibility Model
 
-`POST /orders/{orderId}/refund-eligibility` returns one of four decisions:
+`orders.order_status` has five states: `0 Pending Payment`, `1 Paid`, `2 Shipped`, `3 Completed`, `4 Cancelled`. Logistics facts are stored separately in `delivery_status` (`0 Not Shipped`, `1 In Transit`, `2 Delivered`, `3 Rejected`) and `signed_at` to avoid conflating "completed" with the delivery timestamp. Custom and virtual goods use dedicated production and digital-delivery fields. `order_details.product_type` is `0 Standard`, `1 Custom`, `2 Perishable`, `3 Virtual`; refund eligibility is currently assessed per order using a single product type.
 
-| Decision | Meaning |
-|---|---|
-| `ELIGIBLE` | Refund/return can proceed immediately |
-| `INELIGIBLE` | Outside policy — cannot proceed |
-| `NEED_MORE_INFO` | Missing required fields (e.g. condition status, customer used?) |
-| `MANUAL_REVIEW` | Needs a human agent to review (e.g. logistics intercept scenario) |
+`POST /orders/{orderId}/refund-eligibility` returns `ELIGIBLE / INELIGIBLE / NEED_MORE_INFO / MANUAL_REVIEW`, reason codes, missing fields, next action, and rule version. Paid-but-unshipped standard items may apply for a refund immediately without asking about delivery or item condition; no-reason returns for delivered standard items require checking the 7-day window and resalability. After-sales submission re-checks eligibility inside the same transaction and uses an active-ticket business key to make repeated submissions idempotent.
 
-Key rules:
-- **Paid, not yet shipped** → eligible for refund directly, no questions asked
-- **Delivered, within 7 days** → eligible for no-reason return if item is resalable
-- **Delivered, over 7 days** → ineligible for no-reason return
-- **Custom or digital goods** → excluded from no-reason returns; quality issues still accepted
-- After-sales submission re-checks eligibility in the same transaction and is idempotent
+## Login and Demo Accounts
 
----
+The browser submits only username and password; the business identity comes entirely from the server-side login session. Regular users cannot switch identities or expand their RAG or order scope via request parameters. Five failed logins trigger a 15-minute lockout; sessions idle-expire after 30 minutes and hard-expire after 8 hours; only one active session per account is kept.
 
-## Build & Test
+| Category | Login / Actor ID | Knowledge scope | Order and tool capabilities |
+| --- | --- | --- | --- |
+| HR | `hr.linyue` / HR001 | public + hr | Knowledge search only |
+| HR | `hr.chenchen` / HR002 | public + hr | Knowledge search only |
+| Engineering | `dev.zhouhang` / DEV001 | public + developer | Knowledge search only |
+| Engineering | `dev.zhaoning` / DEV002 | public + developer + admin | Technical and Agent ops knowledge |
+| Sales | `sales.wanglei` / SALES001 | public + sales | View assigned customer USER1001 orders only; privacy fields masked |
+| Sales | `sales.liuting` / SALES002 | public + sales | View assigned customer USER1002 orders only; privacy fields masked |
+| Customer | `customer.zhangwei` / USER1001 | public + customer_service | Own two orders, can cancel and raise after-sales with confirmation |
+| Customer | `customer.lina` / USER1002 | public + customer_service | Own one completed order, can cancel and raise after-sales with confirmation |
 
-Build everything and run unit tests:
+All demo users share the password **`DemoLogin@2026!`**.
+
+Identity catalog, accounts, knowledge scope, capabilities, suggested questions, and sales–customer assignments are initialised by Flyway under the `demo` profile. Dynamic user profiles are still stored in the existing `user_profile` table. The admin can briefly impersonate a business identity in the demo environment after re-entering their password (max 15 minutes); admin commands and sensitive-op confirmations are blocked during impersonation.
+
+### Suggested questions per identity
+
+| Login | Suggested questions |
+| --- | --- |
+| `hr.linyue` | How is annual leave calculated? · What employee benefits does the company offer? · What are the cross-department collaboration guidelines? |
+| `hr.chenchen` | What does a new employee need to prepare for onboarding? · What are the probation period management requirements? · What is the recruitment interview process? |
+| `dev.zhouhang` | What standards apply to order API development? · What are the code review requirements? · How should API idempotency be handled? |
+| `dev.zhaoning` | How do I troubleshoot Agent service errors? · What should I do if knowledge base import fails? · What should be checked before a service goes live? |
+| `sales.wanglei` | What should I watch for when following up on orders? · View orders for my assigned customers · How do I coordinate a customer refund request? |
+| `sales.liuting` | How do I follow up on key account orders? · View orders for my assigned customers · What are the boundaries for sales pricing? |
+| `customer.zhangwei` | View my orders · Can I get a refund for ORD20260810001? · When will my order be shipped? |
+| `customer.lina` | View my orders · Can I still request after-sales for a completed order? · Explain the after-sales processing rules |
+
+### Demo orders
+
+| Order ID | Customer | Item | Amount | Status |
+| --- | --- | --- | --- | --- |
+| `ORD20260810001` | USER1001 (Zhang Wei) | Demo Phone Pro — 16GB+512GB | ¥5,999 | Paid (not shipped) |
+| `ORD20260810002` | USER1001 (Zhang Wei) | Demo Tablet — 256GB | ¥3,299 | Shipped (in transit) |
+| `ORD20260810003` | USER1002 (Li Na) | Demo Laptop — 32GB+1TB | ¥8,999 | Completed (delivered) |
+
+### Reset the demo
+
+Demo reset, knowledge base write, account, token, and security audit endpoints are all admin-only and accessible from the admin dashboard.
+
+A reset restores the 3 seed orders to their original state, deletes seed after-sales tickets, and clears the Redis short-term memory, Milvus long-term memory, dynamic user profile, and pending confirmation state for all 8 identities. Personas, knowledge scopes, sales assignments, and the imported knowledge base are not deleted. The internal reset endpoint in `mall-order` exists only under the `demo` profile.
+
+### 5. Run end-to-end smoke scenarios
+
+```bash
+./scripts/smoke-test.sh
+```
+
+The script validates:
+
+1. `ORDER_QUERY` — query USER1001's order `ORD20260810001`.
+2. `RAG_QA` — answer a refund-rules question with a required knowledge base hit.
+3. `DANGEROUS_ORDER_OP` — a refund request must pause and wait for confirmation.
+
+To also verify that confirmation actually persists to the database:
+
+```bash
+CONFIRM_SENSITIVE=true ./scripts/smoke-test.sh
+```
+
+### Stop
+
+```bash
+./scripts/stop-apps.sh
+docker compose down
+```
+
+`docker compose down` without `-v` preserves data volumes for repeated demos.
+
+## Build and Test
 
 ```bash
 ./mvnw verify
-```
-
-Build only the agent module and its dependencies:
-
-```bash
 ./mvnw -pl mall-order-agent -am verify
 ```
 
-Tests use only unit tests, MockMvc, and mock clients — no MySQL, Redis, Milvus, or live API calls required. Tests named `*LiveIT` or `*IntegrationTest` require a real environment and are excluded from the default Surefire run.
+The default test suite uses only unit tests, MockMvc, and mock clients — no MySQL, Redis, Milvus, or external API calls required. Tests named `*LiveIT` / `*IntegrationTest` require a real environment and are excluded from the default Surefire run.
 
-CI is defined in `.github/workflows/ci.yml` and runs the full reactor `verify`.
+CI is defined in `.github/workflows/ci.yml`; it validates the Compose configuration and runs the full reactor `verify`.
 
----
+## Trace Contract 1.0
 
-## Security Scope
-
-- Spring Security with BCrypt-12, Redis server-side sessions, CSRF protection, session fixation protection, single active session per user, and login lockout (5 failures → 15 min lock)
-- Session idle timeout: 30 minutes; absolute max: 8 hours
-- `actorUserId`, RAG scope, capabilities, and order customer scope all derive from the authenticated session — clients cannot expand their own permissions
-- Order, MCP, and observability services use separate service tokens; health endpoints are public; all ports bind to `127.0.0.1` by default
-- AgentInsight uses a dedicated `EVALUATION_ACT_AS` token for `/internal/evaluation/ask`; the token is stored as SHA-256 only
-- Login, account, password, token, impersonation, and denial events are written to a sanitised security audit log (retained 180 days)
-- Traces never capture query text, response text, prompts, order numbers, or full user IDs
-
----
-
-## Trace Contract
-
-Every request produces a root trace (`agent.ask` or `agent.resume`) with a `TRACE_END` event containing these stable fields:
+The root Trace uses `agent.ask` or `agent.resume` and retains these stable evaluation fields in `TRACE_END`:
 
 | Field | Meaning |
-|---|---|
-| `traceSchemaVersion` | Contract version (`1.0`) |
+| --- | --- |
+| `traceSchemaVersion` | Contract version, currently `1.0` |
 | `agentName` / `agentVersion` | Agent identifier and version |
 | `conversationId` | Business conversation ID |
 | `queryFingerprint` / `queryLength` | Input identifier without storing the raw text |
 | `planStrategy` | Planner's final strategy |
-| `grounded` / `interrupted` | Whether RAG evidence was used / whether human review was triggered |
-| `responseLength` | Output length (text not captured) |
-| `continuedFromTraceId` | Links a `resume` to its original interrupted trace |
+| `grounded` / `interrupted` | Evidence state and human-interrupt state |
+| `responseLength` | Output length; output text is not captured |
+| `continuedFromTraceId` | Links a `resume` to its original interrupted Trace |
 
-Retrieval spans record `chunkId`, `source`, and `score`. Sensitive tool spans record `operation`, order/user fingerprint, and `executionStatus`.
+Retrieval spans record `chunkId`, `source`, and `score`; sensitive Tool spans record `operation`, order/user fingerprint, and `executionStatus`. Query text, response text, prompts, order numbers, user IDs, and filter expressions are never stored in the Trace. RocketMQ consumer failures throw exceptions to trigger retry, preventing silent acknowledgement of failed messages.
 
----
+## Security Scope
+
+- Web layer uses Spring Security, BCrypt-12, Redis server-side sessions, CSRF protection, session-fixation protection, single-session enforcement, and login lockout.
+- `actorUserId`, RAG scope, capabilities, and order customer scope all derive from the authenticated principal; cross-user `resume` / `abandon` return 404.
+- Order, MCP, and observability endpoints use separate service tokens; health probes remain public; all ports bind to `127.0.0.1` by default.
+- AgentInsight uses a dedicated `EVALUATION_ACT_AS` token for `/internal/evaluation/ask`; only the SHA-256 digest is stored, and the token supports revocation.
+- Login, account, password, token, impersonation, and denial events are written to a sanitised security audit log retained for 180 days.
+- Traces never capture query text, response text, prompts, order numbers, or full user IDs.
+
+Public deployment still requires TLS, a proper secrets manager, an external IdP/MFA, a centralised gateway with rate limiting, and multi-instance checkpoint support. The `local-*-change-me` default tokens are for loopback-only demos only.
+
+## Integration with AgentInsight
+
+The E-commerce Order Agent Platform handles execution; AgentInsight handles observability and evaluation. Once both are connected to the same Elasticsearch `rag-traces` index, AgentInsight can measure quality from `agent.ask / TRACE_END` events and run deterministic regression against Planner, RAG, Tool, and Human spans.
+
+Both sides must be configured with the same `AGENT_EVALUATION_TOKEN`. AgentInsight historic test cases are automatically migrated by V9 to `http://127.0.0.1:8087/internal/evaluation/ask` and do not use web login sessions or client-side identity fields.
+
+Recommended demo sequence:
+
+1. Show how a plain order query bypasses the LLM and goes directly to the deterministic Tool.
+2. Show a RAG Q&A with retrieval evidence, rerank scores, and the Trace.
+3. Submit a refund request and show the Graph pausing; after confirmation show the MCP call and the MySQL ticket.
+4. Open the same `traceId` in AgentInsight and explain how it pinpoints planning, retrieval, or tool issues.
 
 ## Known Limitations
 
-- Graph checkpoint and pending-confirmation state are stored in single-process memory — no multi-instance or restart recovery
-- Knowledge base import is an explicit ops step; re-importing after content changes requires a version cleanup strategy
-- Docker Compose is for local development only — no production HA, TLS, backup, or capacity planning
-- The `local-*-change-me` default service tokens are for loopback-only demos — replace them for any internet-accessible deployment
+- Graph checkpoint and pending-confirmation state are stored in single-process memory; multi-instance and restart recovery are not supported.
+- Knowledge base import is an explicit ops step; the same version can be imported idempotently, but changing document content requires a planned old-version cleanup strategy.
+- Docker Compose targets local development; it does not include production HA, TLS, backup, or capacity planning.
+- End-to-end smoke tests depend on Mistral network availability and API quota; the default unit tests have no such dependency.
